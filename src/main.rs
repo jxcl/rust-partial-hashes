@@ -1,7 +1,8 @@
-#![feature(rand,core,rustc_private,collections)]
+#![feature(rand,core,rustc_private,collections,io)]
 extern crate crypto;
 extern crate serialize;
 
+use std::old_io;
 use std::rand;
 use std::mem::transmute;
 use serialize::hex::ToHex;
@@ -9,15 +10,17 @@ use serialize::hex::ToHex;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 
-fn build_string(in_string: &str, n: i64) -> String {
-    let mut header = String::from_str(in_string);
+fn build_n_string(n: i64) -> String {
     let n_bytes: [u8; 8] = unsafe { transmute(n) };
-    let n_hex = n_bytes.to_hex();
 
-    header.push(':');
-    header.push_str(n_hex.as_slice());
+    n_bytes.to_hex()
+}
 
-    header
+fn hash_partial_header(input: &str) -> Sha256 {
+    let mut hasher = Sha256::new();
+    hasher.input_str(input);
+
+    hasher
 }
 
 fn find_hash(input: &str) -> String {
@@ -36,17 +39,23 @@ fn valid_hash(hash: &str, num_zeros: u32) -> bool {
 }
 
 fn find_partial(in_string: &str) {
-    let mut count: u32 = 0;
+    let mut count: u64 = 0;
     let mut n: i64 = rand::random::<i64>();
     let num_zeros = 5;
-
+    let hasher = hash_partial_header(in_string);
     loop {
         count += 1;
-        let input = build_string(in_string, n);
-        let hash = find_hash(input.as_slice());
+        let mut hasher_clone = hasher;
+        let n_string = build_n_string(n);
+        hasher_clone.input_str(":");
+        hasher_clone.input_str(n_string.as_slice());
+        let hash = hasher_clone.result_str();
         if valid_hash(hash.as_slice(), num_zeros) {
-            println!("Found hash after {} tries:", count);
-            println!("Input: {}", input);
+            let mut full_input = String::from_str(in_string);
+            full_input.push(':');
+            full_input.push_str(n_string.as_slice());
+            println!("Found hash after {} tries.", count);
+            println!("Input: {}", full_input);
             println!("Hash: {}", hash);
             return;
         }
@@ -55,7 +64,8 @@ fn find_partial(in_string: &str) {
 }
 
 fn main() {
-    let in_string: String = String::from_str("Hello there.");
+    print!("Please enter an input string: ");
+    let in_string: String = old_io::stdin().read_line().ok().expect("Failed to read line.");
 
-    find_partial(in_string.as_slice());
+    find_partial(in_string.trim().as_slice());
 }
