@@ -1,0 +1,8 @@
+[package]
+
+name = "partial_hashes"
+version = "0.0.1"
+authors = ["Alexander Bliskovsky <alexander.bliskovsky@gmail.com>"]
+
+[dependencies]
+rust-crypto = "0.2.16"
