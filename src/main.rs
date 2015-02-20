@@ -1,10 +1,10 @@
-#![feature(rand,core,rustc_private,collections)]
+#![feature(core,collections)]
+extern crate rand;
 extern crate crypto;
-extern crate serialize;
+extern crate "rustc-serialize" as rustc_serialize;
 
-use std::rand;
 use std::mem::transmute;
-use serialize::hex::ToHex;
+use rustc_serialize::hex::ToHex;
 
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
@@ -20,10 +20,9 @@ fn build_string(in_string: &str, n: i64) -> String {
     header
 }
 
-fn find_hash(input: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.input_str(input);
-    hasher.result_str()
+fn find_hash(input: &str, hasher: &mut Sha256) -> String {
+    (*hasher).input_str(input);
+    (*hasher).result_str()
 }
 
 fn valid_hash(hash: &str, num_zeros: u32) -> bool {
@@ -38,24 +37,26 @@ fn valid_hash(hash: &str, num_zeros: u32) -> bool {
 fn find_partial(in_string: &str) {
     let mut count: u32 = 0;
     let mut n: i64 = rand::random::<i64>();
+    let mut hasher = Sha256::new();
     let num_zeros = 5;
 
     loop {
         count += 1;
         let input = build_string(in_string, n);
-        let hash = find_hash(input.as_slice());
+        let hash = find_hash(input.as_slice(), &mut hasher);
         if valid_hash(hash.as_slice(), num_zeros) {
             println!("Found hash after {} tries:", count);
             println!("Input: {}", input);
             println!("Hash: {}", hash);
             return;
         }
+        hasher.reset();
         n += 1;
     }
 }
 
 fn main() {
-    let in_string: String = String::from_str("Hello there.");
+    let in_string: String = String::from_str("Hello world.");
 
     find_partial(in_string.as_slice());
 }

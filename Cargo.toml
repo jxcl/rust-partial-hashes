@@ -6,3 +6,5 @@ authors = ["Alexander Bliskovsky <alexander.bliskovsky@gmail.com>"]
 
 [dependencies]
 rust-crypto = "0.2.16"
+rand = "*"
+rustc-serialize = "*"
