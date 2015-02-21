@@ -13,6 +13,10 @@ use rustc_serialize::hex::ToHex;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 
+type NumTries = u64;
+type ResultStr = String;
+type HashThreadResult = Result<(ResultStr, NumTries), NumTries>;
+
 fn build_string(in_string: &str, n: i64) -> String {
     let mut header = String::from_str(in_string);
     let n_bytes: [u8; 8] = unsafe { transmute(n) };
@@ -39,12 +43,12 @@ fn valid_hash(hash: &str, num_zeros: u32) -> bool {
 }
 
 fn find_partial(in_str: &str) {
-    let mut count: u32 = 0;
+    let mut count: u64 = 0;
     let n: i64 = rand::random::<i64>();
 
     let num_zeros = 6;
     let num_procs = 6;
-    let (tx, rx) = channel::<String>();
+    let (tx, rx) = channel::<HashThreadResult>();
     let hash_found: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
     let in_string: Arc<String> = Arc::new(String::from_str(in_str));
 
@@ -54,19 +58,22 @@ fn find_partial(in_str: &str) {
         let hash_found_mutex = hash_found.clone();
         let mut thread_n = n + i;
         let mut hasher = Sha256::new();
+        let mut tries: u64 = 0;
 
         thread::spawn(move || {
             loop {
                 {
                     let hash_found = hash_found_mutex.lock().unwrap();
                     if *hash_found {
+                        tx.send(Err(tries));
                         return;
                     }
                 }
+                tries += 1;
                 let input = build_string((*in_string).as_slice(), thread_n);
                 let hash = find_hash(input.as_slice(), &mut hasher);
                 if valid_hash(hash.as_slice(), num_zeros) {
-                    tx.send(input);
+                    tx.send(Ok((hash, tries)));
                     let mut hash_found = hash_found_mutex.lock().unwrap();
                     *hash_found = true;
                     return;
@@ -77,7 +84,22 @@ fn find_partial(in_str: &str) {
         });
     }
 
-    println!("{}", rx.recv().unwrap());
+    let mut output_string: String = String::new();
+
+    for i in 0..num_procs {
+        let result: HashThreadResult = rx.recv().unwrap();
+        match result {
+            Ok((hash, n)) => {
+                output_string = hash;
+                count += n;
+            },
+            Err(n) => count += n,
+        };
+    }
+
+    println!("Found hash after {} tries.", count);
+    println!("Input: {}", in_str);
+    println!("Output: {}", output_string);
 
 }
 
