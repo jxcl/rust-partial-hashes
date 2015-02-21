@@ -17,6 +17,8 @@ type NumTries = u64;
 type ResultStr = String;
 type HashThreadResult = Result<(ResultStr, NumTries), NumTries>;
 
+// Encapsulates all the fields that a new thread requires
+// to start calculating hashes.
 struct HashThreadProperties {
     tx: Sender<HashThreadResult>,
     in_string: Arc<String>,
@@ -27,7 +29,8 @@ struct HashThreadProperties {
     num_zeros: u32,
 }
 
-/// Concatenate a string with the hex representation of an i64
+// Concatenate a string with the hex representation of an i64
+// with a `:` in between.
 fn build_string(in_string: &str, n: i64) -> String {
     let mut header = String::from_str(in_string);
     let n_bytes: [u8; 8] = unsafe { transmute(n) };
@@ -67,6 +70,11 @@ fn set_found(hash_found_mutex: &Arc<Mutex<bool>>) {
     *hash_found = true;
 }
 
+// Try to find a partial hash collision
+// On success send an Ok signal to parent process
+// with the hash and the number of times we tried.
+// If another thread beats us to it, send an Err with
+// the number of times we tried.
 fn do_hashes(mut props: HashThreadProperties) {
     let mut tries = 0;
     let mut thread_n = props.thread_n;
