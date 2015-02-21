@@ -42,6 +42,20 @@ fn valid_hash(hash: &str, num_zeros: u32) -> bool {
     true
 }
 
+fn continue_running(hash_found_mutex: &Arc<Mutex<bool>>) -> bool {
+    let hash_found = hash_found_mutex.lock().unwrap();
+    if *hash_found {
+        return false;
+    }
+
+    true
+}
+
+fn set_found(hash_found_mutex: &Arc<Mutex<bool>>) {
+    let mut hash_found = hash_found_mutex.lock().unwrap();
+    *hash_found = true;
+}
+
 fn find_partial(in_str: &str) {
     let mut count: u64 = 0;
     let n: i64 = rand::random::<i64>();
@@ -62,20 +76,16 @@ fn find_partial(in_str: &str) {
 
         thread::spawn(move || {
             loop {
-                {
-                    let hash_found = hash_found_mutex.lock().unwrap();
-                    if *hash_found {
-                        tx.send(Err(tries));
-                        return;
-                    }
+                if !continue_running(&hash_found_mutex) {
+                    tx.send(Err(tries)).unwrap();
+                    return;
                 }
                 tries += 1;
                 let input = build_string((*in_string).as_slice(), thread_n);
                 let hash = find_hash(input.as_slice(), &mut hasher);
                 if valid_hash(hash.as_slice(), num_zeros) {
-                    tx.send(Ok((hash, tries)));
-                    let mut hash_found = hash_found_mutex.lock().unwrap();
-                    *hash_found = true;
+                    tx.send(Ok((hash, tries))).unwrap();
+                    set_found(&hash_found_mutex);
                     return;
                 }
                 hasher.reset();
@@ -86,7 +96,7 @@ fn find_partial(in_str: &str) {
 
     let mut output_string: String = String::new();
 
-    for i in 0..num_procs {
+    for _ in 0..num_procs {
         let result: HashThreadResult = rx.recv().unwrap();
         match result {
             Ok((hash, n)) => {
